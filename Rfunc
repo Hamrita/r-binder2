@@ -1,5 +1,6 @@
 library(keras)
 library(tensorflow)
+library(TSLSTM)
 
 ##########################
 lags <- function(x, k){
@@ -183,7 +184,67 @@ mraANN=function(x,wf="la8", J=4, p=3, P=1, size=2, h=10){
  Pred=rowSums(all_pred, na.rm=T)
  return(list(Forecast=Forecast, Fitted=Pred))
 }
+###################################
+#   Wavelet LSTM
+###################################
 
+WaveletLSTM<-function(ts,MLag=12,split_ratio=0.8,wlevels=3,epochs=25,LSTM_unit=20, wf="haar"){
+  SigLags<-NULL
+  SigLags<-function(Data,MLag){
+    ts<-as.ts(na.omit(Data))
+    adf1<-adf.test(na.omit(ts))
+    if (adf1$p.value>0.05){
+      ts<-ts
+    } else {
+      ts<-diff(ts)
+    }
+    adf2<-adf.test(ts)
+    if (adf2$p.value>0.05){
+      ts<-ts
+    } else {
+      ts<-diff(ts)
+    }
+
+    CorrRes<-NULL
+    for (i in 1:MLag) {
+      # i=1
+      ts_y<-dplyr::lag(as.vector(ts), i)
+      t<-cor.test(ts,ts_y)
+      corr_res<-cbind(Corr=t$statistic,p_value=t$p.value)
+      CorrRes<-rbind(CorrRes,corr_res)
+    }
+    rownames(CorrRes)<-seq(1:MLag)
+    Sig_lags<-rownames(subset(CorrRes,CorrRes[,2]<=0.05))
+    maxlag<-max(as.numeric(Sig_lags))
+    return(list(Result=as.data.frame(CorrRes),SigLags=as.numeric(Sig_lags),MaxSigLag=maxlag))
+  }
+  ntest<-round(length(ts)*(1-split_ratio), digits = 0)
+  Split1 <- caretForecast::split_ts(as.ts(ts), test_size = ntest)
+  train_data1 <- Split1$train
+  test_data1 <- Split1$test
+  Wvlevels<-wlevels
+  WaveletSeries <- MRA(ts,wf,Wvlevels)
+  # mraout <- wavelets::modwt(as.vector(ts), filter="haar", n.levels=Wvlevels)
+  # WaveletSeries <- cbind(do.call(cbind,mraout@W),mraout@V[[Wvlevels]])
+  ts_fitted<-NULL
+  ts_foreast<-NULL
+
+  for (j in 1:ncol(WaveletSeries)) {
+    w<-as.ts(WaveletSeries[,j])
+    maxl<-SigLags(Data=w,MLag = MLag)$MaxSigLag
+    model<-TSLSTM::ts.lstm(ts=w,xreg = NULL,tsLag=maxl,xregLag = 0,LSTMUnits=LSTM_unit, Epochs=epochs,SplitRatio =split_ratio)
+    model_par<-rbind(model_par,model$Param)
+    ts_fitted<-model$TrainFittedValue
+    ts_foreast<-model$TestPredictedValue
+  }
+
+  trainf <- apply(ts_fitted,1,sum)
+  testf <- apply(ts_foreast,1,sum)
+  return(list(Train_actual=train_data1,Test_actual=test_data1,Train_fitted=trainf))
+}
+
+#################################################################################################
+#################################################################################################
 ## Recherche des meilleurs val de p et size au sens RMSE
 
 bestMod=function(series,pMax=10,sizeMax=10){
