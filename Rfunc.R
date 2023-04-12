@@ -133,7 +133,7 @@ lags <- function(x, k){
  res$fitted_tr=fitted_tr
  res$pred=predictions
  res$x_train=x_train[,1,1]
-
+}
 
 ##################################
 MRA=function(x,wf="la8",J=4){
