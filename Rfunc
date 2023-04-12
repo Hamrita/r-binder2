@@ -1,6 +1,7 @@
 library(keras)
 library(tensorflow)
 library(TSLSTM)
+library(tseries)
 
 ##########################
 lags <- function(x, k){
@@ -187,6 +188,28 @@ mraANN=function(x,wf="la8", J=4, p=3, P=1, size=2, h=10){
 ###################################
 #   Wavelet LSTM
 ###################################
+
+###################
+# split function
+####################
+
+`%notin%` <- Negate(`%in%`)
+
+split_ts <- function (y, test_size = 10) {
+  if ("ts" %notin% class(y) | "mts" %in% class(y)) {
+    stop("y must be a univariate time series class of 'ts'")
+  }
+  num_train <- length(y) - test_size
+  train_start <- stats::start(y)
+  freq <- stats::frequency(y)
+  test_start <- min(time(y)) + num_train / freq
+  train = stats::ts(y[1:num_train], start = train_start, frequency = freq)
+  test = stats::ts(y[(num_train + 1):length(y)], start = test_start,
+                   frequency = freq)
+  output <- list("train" = train, "test" = test)
+  return(output)
+}
+
 
 WaveletLSTM<-function(ts,MLag=12,split_ratio=0.8,wlevels=3,epochs=25,LSTM_unit=20, wf="haar"){
   SigLags<-NULL
