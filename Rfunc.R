@@ -289,3 +289,44 @@ bestMod=function(series,pMax=10,sizeMax=10){
     cat("======================================================================\n")
 	return(invisible(list(RMSE=cbind(tt, RMSE=rmse_ij[-1]), bestPar=idx)))
 }
+
+#######################################################################################
+#         select best wavelet filter and best level of decomposition
+#######################################################################################
+
+Wav_select <- function(x, wf=c("haar","d4","d6","d8","la8","d16","la16","la20"),
+                       crit="rmse", type="mowdt"){
+  n=length(x)
+  jj=ceiling(log2(n))
+  tt=expand.grid(wf,1:jj)
+  p=NROW(tt)
+  MV=matrix(0,nr=p,nc=8)
+  for(i in 1:p){
+   if(type=="modwt"){
+     xt=matrix(unlist(waveslim::modwt(x,wf=tt[i,1],J=tt[i,2])), nr=n)
+     xt_fit=rowSums(xt)
+     all_Metrics=AllMetrics::all_metrics(x,xt_fit)
+     MV[i,]=as.numeric(all_Metrics[,2])
+   }else if(type=="mra"){
+     xt=matrix(unlist(waveslim::mra(x,wf=tt[i,1],J=tt[i,2])))
+     xt_fit=rowSums(xt)
+     all_Metrics=AllMetrics::all_metrics(x,xt_fit)
+     MV[i,]=as.numeric(all_Metrics[,2])
+   }
+     #xt=matrix(unlist(xt), nr=n)
+     #xt_fit=rowSums(xt)
+     #all_Metrics=AllMetrics::all_metrics(x,xt_fit)
+    # "Metric"=all_Metrics[,1]
+    # "Metric value"=all_Metrics[,2]
+     #MV=rbind(MV,as.numeric(all_Metrics[,2]))
+   } 
+  colnames(MV)=c("RMSE", "RRMSE", "MAE",  "MAPE", "MASE" ,"NSE" ,"WI" ,"LME")
+  res=cbind(tt,MV)
+  idx=which.min(res[,toupper(crit)])
+  cat("\n====================================================\n")
+  cat(" Respect to RMSE criteria, the best wavelet filter is ", res[idx,1], " \n")
+  cat("  and the best level of decomposition is ", res[idx,2]," \n")
+  return(invisible(res))
+}
+
+ 
